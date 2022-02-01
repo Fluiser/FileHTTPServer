@@ -3,7 +3,6 @@ const app = express();
 const fs = require('fs');
 const bodyParser = require('body-parser');
 const { response } = require('express');
-const { encode } = require('punycode');
 const config = (() => {
     try {
         return require('./config.json');
