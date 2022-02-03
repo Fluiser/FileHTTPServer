@@ -92,9 +92,13 @@ if(config.radio) {
                     decoder.pipe(encoder);
                 });
                 let data = fs.readFileSync('./public/music/' + song.path);
-                console.log(song);
+                song.buffer = data;
                 decoder.write(data);
+                song.started = Date.now();
+                console.log(song);
                 await (new Promise(res => setTimeout(res, Math.trunc((song.fdata.format.duration-1)*1000), 0)));
+            	song.started = 0;
+            	delete song.buffer;
             }
         }
     }
@@ -104,15 +108,33 @@ if(config.radio) {
             stream.write(chunk);
     });
 
-    app.get('/radio', (req, res) => {
+    app.get('/radio', async (req, res) => {
+    	console.log(`open ${req.connection.remoteAddress}`);
         response.writeHead(200, { "Content-Type": "audio/mpeg", "Connection": "close", "Transfer-Encoding": "identity"});
-        console.log(req.remoteAddress);
-        listeners.add(res);
-        if(encoder._transformState.writechunk && encoder._transformState.writechunk.length)
-            res.write(encoder._transformState.writechunk);
         res.on('close', () => {
+        	console.log(`close ${req.connection.remoteAddress}`);
             listeners.delete(res);
         });
+        if(song) {
+	        if(song.started && song.buffer)
+	        {
+	        	const decoder = lame.Decoder();
+	        	const encoder = lame.Encoder({
+			        channels: 2,
+			        bitDepth: 16,
+			        sampleRate: 44100,
+			    });
+			    encoder.on('data', data => {
+			    	res.write(data);
+			    });
+			    decoder.pipe(encoder);
+			    decoder.write(song.buffer.slice( song.fdata.format.bit_rate/8 * (Date.now() - song.started)/1000 ));
+			    await (new Promise(res => setTimeout(res, song.fdata.format.duration*1000-(Date.now()-song.started), 0)))
+	        }
+	        else if(song.started && encoder._transformState.writechunk && encoder._transformState.writechunk.length)
+	            res.write(encoder._transformState.writechunk);
+	    }
+        listeners.add(res);
     });
 
     app.get('/api/changeMethodSort', (req, res) => {
