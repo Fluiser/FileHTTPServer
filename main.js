@@ -17,6 +17,7 @@ app.use(express.static(__dirname + '/public'));
 app.disable('x-powered-by');
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+let timeout_music;
 
 if(config.radio) {
     console.log("RADIO ON");
@@ -89,15 +90,18 @@ if(config.radio) {
                 // const stream = fs.createReadStream('./public/music/' + song.path);
                 const decoder = lame.Decoder();
                 decoder.on('format', () => {
-                    decoder.pipe(encoder);
+                    decoder.on('data', data => {
+                    	encoder.write(data);
+                    });
                 });
                 let data = fs.readFileSync('./public/music/' + song.path);
                 song.buffer = data;
                 decoder.write(data);
                 song.started = Date.now();
                 console.log(song);
-                await (new Promise(res => setTimeout(res, Math.trunc((song.fdata.format.duration-1)*1000), 0)));
+                await (new Promise(res => timeout_music = setTimeout(res, Math.trunc((song.fdata.format.duration-1)*1000), 0)));
             	song.started = 0;
+            	decoder.removeAllListeners();
             	delete song.buffer;
             }
         }
@@ -110,7 +114,7 @@ if(config.radio) {
 
     app.get('/radio', async (req, res) => {
     	console.log(`open ${req.connection.remoteAddress}`);
-        response.writeHead(200, { "Content-Type": "audio/mpeg", "Connection": "close", "Transfer-Encoding": "identity"});
+        response.writeHead(200, { "Content-Type": "audio/mp3", "Connection": "close", "Transfer-Encoding": "identity"});
         res.on('close', () => {
         	console.log(`close ${req.connection.remoteAddress}`);
             listeners.delete(res);
@@ -140,6 +144,16 @@ if(config.radio) {
     app.get('/api/changeMethodSort', (req, res) => {
         methodSort = methodSort === __listSort ? __randomSort : __listSort;
         res.send('ok, dude.');
+    });
+
+    app.get('/api/skip', (req, res) => {
+    	if(timeout_music)
+    	{
+    		let f = timeout_music._onTimeout;
+    		timeout_music.close();
+    		f();
+    		res.send("ok");
+    	} else res.send('what?');
     });
 
     workerDJ();
