@@ -38,7 +38,7 @@ if(config.radio) {
         let oldPos = songs.indexOf(song);
         let NewPos = Math.floor(Math.random() * songs.length);
         while(oldPos > -1 && NewPos == oldPos)
-        NewPos = Math.floor(Math.random() * songs.length);
+        	NewPos = Math.floor(Math.random() * songs.length);
         song = songs[NewPos];
         return song;
     }
